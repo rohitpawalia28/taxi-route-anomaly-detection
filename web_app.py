@@ -34,7 +34,10 @@ if not os.path.exists(lookup_path):
 
 zone_df = pd.read_csv(lookup_path)
 zone_df["display_name"] = zone_df["Zone"] + " (" + zone_df["Borough"] + ")"
+
 zone_map = dict(zip(zone_df["display_name"], zone_df["LocationID"]))
+id_to_zone = dict(zip(zone_df["LocationID"], zone_df["Zone"]))
+id_to_borough = dict(zip(zone_df["LocationID"], zone_df["Borough"]))
 
 # ---------------- INPUT MODE TOGGLE ----------------
 st.subheader("🔍 Select Route Input Mode")
@@ -69,12 +72,12 @@ if st.button("Check Anomalies"):
         st.warning("⚠️ Please provide both Pickup and Dropoff details.")
     else:
         route_id = f"{pickup_id}_{dropoff_id}"
-
         st.subheader(f"📌 Results for Route ID: {route_id}")
 
         oc_result = overcharge_df[overcharge_df["route_id"] == route_id]
         ra_result = route_df[route_df["route_id"] == route_id]
 
+        # ---------------- OLD OUTPUT (UNCHANGED) ----------------
         if oc_result.empty and ra_result.empty:
             st.success("✅ No anomalies detected for this route.")
         else:
@@ -85,3 +88,98 @@ if st.button("Check Anomalies"):
             if not ra_result.empty:
                 st.warning("⚠️ Route Anomaly Detected")
                 st.dataframe(ra_result, use_container_width=True)
+
+        # =======================================================
+        # 📊 ROUTE ANALYTICS & EXPLANATION (RATE-BASED)
+        # =======================================================
+
+        st.markdown("---")
+        st.subheader("📊 Route Analytics & Explanation")
+
+        route_data = route_df[route_df["route_id"] == route_id]
+
+        if route_data.empty:
+            st.info("Not enough historical data for deep analysis.")
+        else:
+            avg_rate = route_data["avg_fare_per_min"].mean()
+            charged_rate = route_data["fare_per_min"].mean()
+            avg_duration = route_data["trip_duration_minutes"].mean()
+            total_trips = len(route_data)
+
+            rate_diff_pct = ((charged_rate - avg_rate) / avg_rate) * 100
+
+            st.write(f"**Expected Fare Rate:** ₹{avg_rate:.2f} per minute")
+            st.write(f"**Observed Fare Rate:** ₹{charged_rate:.2f} per minute")
+            st.write(f"**Average Trip Duration:** {avg_duration:.1f} minutes")
+            st.write(f"**Trips Analysed:** {total_trips}")
+
+            if rate_diff_pct > 10:
+                st.error(
+                    f"🚨 Overcharging detected: fare rate is "
+                    f"**{rate_diff_pct:.1f}% higher** than historical average."
+                )
+            else:
+                st.success(
+                    "✅ Fare rate for this route is within the normal range."
+                )
+
+        # =======================================================
+        # 🧭 ALTERNATIVE SAFER PICKUP SUGGESTION
+        # =======================================================
+
+        st.markdown("---")
+        st.subheader("🧭 Suggested Safer Alternative Pickup")
+
+        try:
+            pickup_borough = id_to_borough[int(pickup_id)]
+
+            nearby_ids = zone_df[
+                (zone_df["Borough"] == pickup_borough) &
+                (zone_df["LocationID"] != int(pickup_id))
+            ]["LocationID"].tolist()
+
+            alternatives = route_df[
+                (route_df["PULocationID"].isin(nearby_ids)) &
+                (route_df["DOLocationID"] == int(dropoff_id))
+            ]
+
+            if alternatives.empty:
+                st.info("No better nearby alternative found.")
+            else:
+                alt_stats = (
+                    alternatives
+                    .groupby("PULocationID")
+                    .agg(
+                        avg_rate=("avg_fare_per_min", "mean"),
+                        charged_rate=("fare_per_min", "mean"),
+                        trips=("trip_duration_minutes", "count")
+                    )
+                    .reset_index()
+                    .sort_values("avg_rate")
+                    .head(1)
+                )
+
+                best_id = int(alt_stats.iloc[0]["PULocationID"])
+                best_zone = id_to_zone[best_id]
+
+                improvement_pct = (
+                    (charged_rate - alt_stats.iloc[0]["avg_rate"])
+                    / charged_rate
+                ) * 100
+
+                st.success(
+                    f"""
+                    ✅ **Better Pickup Option Found**
+
+                    • Suggested Pickup: **{best_zone}**
+                    • Average Fare Rate: ₹{alt_stats.iloc[0]['avg_rate']:.2f} / min
+                    • Trips Analysed: {int(alt_stats.iloc[0]['trips'])}
+                    • Estimated Reduction: **{improvement_pct:.1f}%**
+
+                    👉 Recommendation: *Choosing this pickup point statistically
+                    reduces overcharging risk.*
+                    """
+                )
+
+        except Exception:
+            st.info("Alternative route analysis not available.")
