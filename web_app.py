@@ -25,6 +25,15 @@ if not os.path.exists(overcharge_path) or not os.path.exists(route_anomaly_path)
 overcharge_df = pd.read_csv(overcharge_path)
 route_df = pd.read_csv(route_anomaly_path)
 
+# --------- Extract Pickup & Dropoff IDs from route_id ---------
+route_df[["PULocationID", "DOLocationID"]] = (
+    route_df["route_id"]
+    .str.split("_", expand=True)
+    .astype(int)
+)
+
+
+
 # ---------------- LOAD LOCATION LOOKUP ----------------
 lookup_path = "data/taxi_zone_lookup.csv"
 
