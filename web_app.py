@@ -117,8 +117,8 @@ if st.button("Check Anomalies"):
 
             rate_diff_pct = ((charged_rate - avg_rate) / avg_rate) * 100
 
-            st.write(f"**Expected Fare Rate:** ₹{avg_rate:.2f} per minute")
-            st.write(f"**Observed Fare Rate:** ₹{charged_rate:.2f} per minute")
+            st.write(f"**Expected Fare Rate:** \\${avg_rate:.2f} per minute")
+            st.write(f"**Observed Fare Rate:** \\${charged_rate:.2f} per minute")
             st.write(f"**Average Trip Duration:** {avg_duration:.1f} minutes")
             st.write(f"**Trips Analysed:** {total_trips}")
 
@@ -181,7 +181,7 @@ if st.button("Check Anomalies"):
                     ✅ **Better Pickup Option Found**
 
                     • Suggested Pickup: **{best_zone}**
-                    • Average Fare Rate: ₹{alt_stats.iloc[0]['avg_rate']:.2f} / min
+                    • Average Fare Rate: \\${alt_stats.iloc[0]['avg_rate']:.2f} / min
                     • Trips Analysed: {int(alt_stats.iloc[0]['trips'])}
                     • Estimated Reduction: **{improvement_pct:.1f}%**
 
